@@ -1,6 +1,5 @@
 
 let Enquirer=require("enquirer");
-let api=require("..");
 let SC=require("morgas").shortcut({
 	Helper:"FileHelper",
 	File:"File"

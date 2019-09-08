@@ -4,7 +4,7 @@ module.exports=µ.Class({
 	constructor:function(chapter,{filename="UNKNOWN",skip=false,duplicate=false}={})
 	{
 		this.chapter=chapter;
-		this.chapterName=chapter.ChapterDisplay.ChapString.value;
+		this.chapterName=chapter.name;
 		this.filename=filename;
 		this.skip=skip;
 		this.duplicate=duplicate;

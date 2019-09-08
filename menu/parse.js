@@ -1,5 +1,6 @@
-let api=require("..");
+let api=require("mkv-chapter-merge");
 let Enquirer=require("enquirer");
+let PATH = require("path");
 let SC=require("morgas").shortcut({
 	Helper:"FileHelper",
 	File:"File",
@@ -7,11 +8,12 @@ let SC=require("morgas").shortcut({
 	flatten:"flatten",
 	register:"register",
 	mapRegister:"mapRegister",
+	removeIf:"array.removeIf"
 });
 let EditableChapter=require("../menu/chapters/EditableChapter");
 let ChapterEditor=require("../prompts/ChapterEditor");
 
-let getEditableChapters=function(fileInfos)
+let getEditableChapters=function(fileInfos,{skipHidden=true}={})
 {
 	let rtn=[];
 	let register=SC.register(2,()=>({chapter:null,parsed:[]}));
@@ -19,9 +21,9 @@ let getEditableChapters=function(fileInfos)
 	{
 		for(let chapter of fInfo.chapters)
 		{
-			let segment=chapter.ChapterSegmentUID.data.toString("hex");
+			let segment=chapter.segmentUID.toString("hex");
 
-			let edition=chapter.ChapterSegmentEditionUID?chapter.ChapterSegmentEditionUID.data:"";
+			let edition=chapter.segmentEditionUID?chapter.segmentEditionUID:"";
 			let registerEntry=register[segment][edition];
 			let uniqueChapter=registerEntry.chapter
 			if(!uniqueChapter)
@@ -29,9 +31,10 @@ let getEditableChapters=function(fileInfos)
 				uniqueChapter=registerEntry.chapter=chapter;
 			}
 			if(registerEntry.parsed.length==1)registerEntry.parsed[0].duplicate=true;
-			let ediable=new EditableChapter(uniqueChapter,{filename:fInfo.file.getName(),duplicate:registerEntry.parsed.length>0});
-			registerEntry.parsed.push(ediable);
-			rtn.push(ediable);
+
+			let editable=new EditableChapter(uniqueChapter,{filename:PATH.parse(fInfo.path).base,duplicate:registerEntry.parsed.length>0});
+			registerEntry.parsed.push(editable);
+			rtn.push(editable);
 		}
 	}
 	return rtn;
@@ -40,9 +43,22 @@ let getEditableChapters=function(fileInfos)
 module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),limit=enquirer.options.limit||10,options:{skipHidden=true}={}})
 {
 	outStream.write("parsing...\n");
-	let fileInfos=await api.getChapters(files,{skipHidden}).catch(e=>{console.error(e);return []});
-	outStream.write("mapping...\n");
-	fileInfos.forEach(f=>f.chapters=f.chapters.map(c=>api.createOrderedChapter(c,f)));
+	let fileInfos=await Promise.all(files.map(f=>api.readFileInfo(f.getAbsolutePath()))).catch(e=>{console.error(e);return []});
+	SC.removeIf(fileInfos,f=>f==null);
+	if(skipHidden)
+	{
+		outStream.write("filter skipped chapters...\n");
+		fileInfos.forEach(fInfo=>fInfo.chapters=fInfo.chapters.filter(c=>!c.hidden));
+	}
+	outStream.write("fixing things...\n");
+	fileInfos.forEach(fInfo=>
+	{
+		//TODO dont sort ordered
+		//api.repair.sortChapters(fInfo);
+		api.repair.fillGaps(fInfo);
+	});
+	outStream.write("linking chapters...\n");
+	fileInfos.forEach(fInfo=>fInfo.chapters=fInfo.chapters.map(c=>c.createLinkedChapter()));
 
 	let chapters=getEditableChapters(fileInfos);
 
@@ -81,9 +97,9 @@ module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),lim
 	let merge= async()=>
 	{
 		let output = await SC.utils.findUnusedName(new SC.File(path).changePath("merged.mkv"));
-		let outFile=new SC.File(output);
-		await api.mergeChapters(chapters.filter(e=>!e.skip).map(e=>e.chapter),outFile);
-		outStream.write("merged into "+outFile.getName()+"\n");
+		let outFile=api.FileInfo.createLinkedFile(chapters.filter(e=>!e.skip).map(e=>e.chapter),{path:output});
+		await outFile.writeToFile();
+		outStream.write("merged into "+outFile.path+"\n");
 	};
 
 	while(true)

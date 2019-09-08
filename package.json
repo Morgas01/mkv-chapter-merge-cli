@@ -1,5 +1,5 @@
 {
-  "name": "mkv-chapter-merge",
+  "name": "mkv-chapter-merge-cli",
   "version": "0.1.3",
   "description": "reads and merges chapters of .mkv files into one file linking the chapters",
   "main": "index.js",

@@ -1,0 +1,26 @@
+{
+  "name": "mkv-chapter-merge",
+  "version": "0.1.3",
+  "description": "reads and merges chapters of .mkv files into one file linking the chapters",
+  "main": "index.js",
+  "dependencies": {
+    "mkv-chapter-merge": "^0.2.0",
+    "enquirer": "^2.3.1",
+    "morgas": "^0.8.8",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mkv",
+    "matroska",
+    "ordered",
+    "chapter",
+    "merge",
+    "cli"
+  ],
+  "author": "Morgas01",
+  "license": "MIT"
+}

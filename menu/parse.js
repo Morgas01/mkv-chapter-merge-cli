@@ -32,7 +32,7 @@ let getEditableChapters=function(fileInfos,{skipHidden=true}={})
 			}
 			if(registerEntry.parsed.length==1)registerEntry.parsed[0].duplicate=true;
 
-			let editable=new EditableChapter(uniqueChapter,{filename:PATH.parse(fInfo.path).base,duplicate:registerEntry.parsed.length>0});
+			let editable=new EditableChapter(uniqueChapter,{filename:PATH.parse(fInfo.path).name,duplicate:registerEntry.parsed.length>0});
 			registerEntry.parsed.push(editable);
 			rtn.push(editable);
 		}
@@ -42,6 +42,8 @@ let getEditableChapters=function(fileInfos,{skipHidden=true}={})
 
 module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),limit=enquirer.options.limit||10,options:{skipHidden=true}={}})
 {
+    enquirer.register("optionsprompt",require("../prompts/OptionsPrompt"));
+
 	outStream.write("parsing...\n");
 	let fileInfos=await Promise.all(files.map(f=>api.readFileInfo(f.getAbsolutePath()))).catch(e=>{console.error(e);return []});
 	SC.removeIf(fileInfos,f=>f==null);
@@ -53,14 +55,17 @@ module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),lim
 	outStream.write("fixing things...\n");
 	fileInfos.forEach(fInfo=>
 	{
-		//TODO dont sort ordered
-		//api.repair.sortChapters(fInfo);
+		api.repair.sortChapters(fInfo);
 		api.repair.fillGaps(fInfo);
 	});
 	outStream.write("linking chapters...\n");
-	fileInfos.forEach(fInfo=>fInfo.chapters=fInfo.chapters.map(c=>c.createLinkedChapter()));
+	fileInfos.forEach(fInfo=>fInfo.chapters=fInfo.chapters.map(c=>c.createLinkedChapter({fileInfo:fInfo})));
 
 	let chapters=getEditableChapters(fileInfos);
+
+	let mergeOptions={
+		prependFileName:true
+	};
 
 	let chapterMenuIndex=0;
 	let chapterMenu=()=>
@@ -73,6 +78,10 @@ module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),lim
 				{
 					message:"edit chapter",
 					value:"edit"
+				},
+				{
+					message:"options",
+					value:"options"
 				},
 				{
 					message:"merge chapters",
@@ -94,10 +103,40 @@ module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),lim
 			limit
 		}).run());
 	};
+	let selectMergeOptions=async ()=>
+	{
+		mergeOptions=(await enquirer.prompt({
+			type:"optionsprompt",
+			name:"options",
+			message:"options",
+			choices:[
+				{
+					name:"prependFileName",
+					message:"prepend FileName to chapters",
+					choices:[
+						{name:"Yes",value:true,selected:mergeOptions.prependFileName},
+						{name:"No",value:false,selected:!mergeOptions.prependFileName},
+					]
+				}
+			],
+			multiple:true
+		})).options;
+	}
 	let merge= async()=>
 	{
+		let mergeChapters=chapters.map(function(editableChapter)
+		{
+			if(editableChapter.skip) return null;
+
+			let chapterCopy=new api.ChapterInfo(editableChapter.chapter);
+			if(mergeOptions.prependFileName) chapterCopy.name=editableChapter.filename+":"+editableChapter.chapterName;
+
+			return chapterCopy;
+		})
+		.filter(a=>a); // filter nulls
+
 		let output = await SC.utils.findUnusedName(new SC.File(path).changePath("merged.mkv"));
-		let outFile=api.FileInfo.createLinkedFile(chapters.filter(e=>!e.skip).map(e=>e.chapter),{path:output});
+		let outFile=api.FileInfo.createLinkedFile(mergeChapters,{path:output});
 		await outFile.writeToFile();
 		outStream.write("merged into "+outFile.path+"\n");
 	};
@@ -113,8 +152,11 @@ module.exports=async function ({files,outStream,path,enquirer=new Enquirer(),lim
 				case "edit":
 					await edit();
 					break;
+				case "options":
+					await selectMergeOptions();
+					break;
 				case "merge":
-					return merge();
+					await merge();
 					break;
 				case "back":
 					return;

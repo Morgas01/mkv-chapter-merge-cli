@@ -14,11 +14,13 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
+    "ebml",
     "mkv",
     "matroska",
     "ordered",
     "chapter",
     "merge",
+    "mkv-chapters",
     "cli"
   ],
   "author": "Morgas01",

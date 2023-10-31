@@ -1,4 +1,4 @@
-let api=require("mkv-chapter-merge");
+let api=require("mkv-chapters");
 let Enquirer=require("enquirer");
 let PATH = require("path");
 let SC=require("morgas").shortcut({
